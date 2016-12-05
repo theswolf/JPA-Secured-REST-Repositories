@@ -235,6 +235,56 @@ public class SpringSecurityAuditorAware implements AuditorAware<String> {
 
 ```
 
+Last thing, I've handled the app status in case of ValidationException throwned by JPA Subsystem in a custom ControllerAdvice
+`hello.error.DataErrorHandler`
+
+```java
+package hello.error;
+
+import org.springframework.data.rest.webmvc.RepositoryRestExceptionHandler;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.util.NestedServletException;
+
+import javax.validation.ValidationException;
+
+/**
+ * Created by christian on 23/11/16.
+ */
+@ControllerAdvice(basePackageClasses = RepositoryRestExceptionHandler.class)
+class DataErrorHandler {
+    @ExceptionHandler
+    ResponseEntity handle(Exception e) {
+        e.printStackTrace();
+        Throwable root = isFromException(e,ValidationException.class);
+        if(root != null) {
+            return new ResponseEntity(root.getMessage(), new HttpHeaders(), HttpStatus.FORBIDDEN);
+        }
+
+        else {
+            return new ResponseEntity(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase(), new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+
+    }
+
+    private <T> Throwable isFromException(Throwable input,Class<T> causeClass) {
+        if(input == null)
+            return null;
+        if(input.getClass().equals(causeClass)) {
+            return input;
+        }
+        return isFromException(input.getCause(),causeClass);
+    }
+}
+
+```
+without that handler the response status will be 2XX and we want our Exception to be clear to the client, so in case of that exception handled by RepositoryRestExceptionHandler
+will put our response in a FORBIDDEN status.
+
 I added two tests to check the correct behaviour of application:
 ```java
 @Test
